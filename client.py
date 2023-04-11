@@ -3,31 +3,46 @@
 import socket
 
 class Client:
-    #TODO
-    def __init__(self, hostname, serv_socket, port):
-        self.host = hostname
-        self.serv = serv_socket
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def __init__(self, host='127.0.0.1',port=12345):
+        self.host = host
         self.port = port
-        return 
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    #TODO
+
     def connect_socket(self):  
-        self.sock.connect((self.host, self.port))
+        self.client_socket.connect((self.host, self.port))
+        print(f"Connected to server {self.host}:{self.port}")
 
     def send_msg(self, message):
-        self.sock.send(message.encode('utf-8'))
-        return self.sock.recv(1024).decode()
+        self.client_socket.send(message.encode('utf-8'))
+        return self.client_socket.recv(1024).decode()
 
     def close_socket(self):
-        self.sock.close()
-        return
+        self.client_socket.close()
+        print("Disconnected from server")
 
     def authenticate(self, username, password):
         message = username + ":" + password
         response = self.send_msg(message)
-        if response.decode('utf-8') == "Authentication successful!":
-
+        if response == "Authentication successful!":
+            return True
+        elif response == "Authentication failed!":
+            return False
+        else:
+            raise(Exception.args)
 
     def vote(self):
+        pass
         
+if __name__ == '__main__':
+    client = Client()
+
+    # Connect to the server
+    client.connect_socket()
+
+    # Authenticate using example credentials
+    is_authenticated = client.authenticate("user1", "password1")
+    print(f"Authentication result: {is_authenticated}")
+
+    # Disconnect from the server
+    client.close_socket()

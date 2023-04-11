@@ -6,7 +6,7 @@ class Server:
     def __init__(self, host='127.0.0.1',port=12345):
         self.host = host
         self.port = port
-        self.users = {}
+        self.users = []
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
@@ -37,8 +37,7 @@ class Server:
 
 
     def authenticate(self, data):
-        username, password = data.split(':', 1)
-        if username in self.users and self.users[username] == password:
+        if data in self.users:
             return True
         else:
             return False
