@@ -42,7 +42,6 @@ class Connexion:
             encrypted_blocks.append(encrypted_block)
 
         safe_message = b"".join(encrypted_blocks)
-        print(safe_message)
         self.client_socket.send(safe_message)
 
     def recv(self, size, auto_decode = True, auto_upgrade = True):
@@ -65,9 +64,13 @@ class Connexion:
             return self.recv(size)
 
         encrypted_answer = self.client_socket.recv(size)
-        print(b"encrypted : " + encrypted_answer)
+        try:
+            data = rsa.decrypt(encrypted_answer, self.privkey)
+        except rsa.pkcs1.DecryptionError as e:
+            print(f"[ERROR] This message can't be decrypted : {encrypted_answer}")
+            # TODO Check if compliant
+            data = encrypted_answer
 
-        data = rsa.decrypt(encrypted_answer, self.privkey)
         if auto_decode:
             data = data.decode('utf-8')
 

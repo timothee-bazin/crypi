@@ -13,6 +13,7 @@ class User:
         self.creds = None
         self.logged = False
         self.voted = False
+        self.connexion = None
 
 class Server:
     def __init__(self, host='127.0.0.1',port=12346):
@@ -55,9 +56,6 @@ class Server:
         while not self.client_login(connexion):
             continue
 
-        if connexion is None:
-            return
-
         while True:
             data = connexion.recv_safe(1024)
             if not data:
@@ -65,7 +63,6 @@ class Server:
                 client_socket.close()
                 break
 
-            print(f"Received data from {client_address}: {data}")
             if data.startswith("CONTEXTE "):
                 pass
             elif data.startswith("VOTE "):
@@ -97,6 +94,9 @@ class Server:
         creds = data.split("LOGIN ")[-1]
         if self.authenticate(creds):
             connexion.send_safe("Authentication successful!")
+            self.users[creds].creds = creds 
+            self.users[creds].logged = True 
+            self.users[creds].connexion = connexion 
             return True
         else:
             connexion.send("Authentication failed!")

@@ -34,7 +34,8 @@ class Client:
 
     def authenticate(self, username, password):
         message = username + ":" + password
-        response = self.connexion.send("LOGIN " + message)
+        self.connexion.send_safe("LOGIN " + message)
+        response = self.connexion.recv_safe(1024)
         if response == "Authentication successful!":
             return True
         elif response == "Authentication failed!":
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     print(f"Authentication result: {is_authenticated}")
 
     message = "hello world!"
-    response = client.send_safe(message)
+    response = client.connexion.send_safe(message)
 
     # Disconnect from the server
     #client.close_socket()
