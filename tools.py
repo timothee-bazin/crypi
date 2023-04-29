@@ -4,8 +4,8 @@ import re
 from datetime import datetime
 
 
-# Fonction pour enlever les accents d'une chaîne de caractères
-def remove_accents(chaine):
+# Sanitize nom prénom et date
+def sanitize_str(chaine):
     # Liste de caractères à conserver lors de la suppression des caractères diacritiques
     caracteres_a_garder = ["'"]
     # Utiliser la fonction normalize du module unicodedata pour décomposer les caractères en unicode
@@ -16,14 +16,17 @@ def remove_accents(chaine):
     return sans_accents
 
 
-# Sanitize nom prénom et date
-def sanitize_str(chaine):
+def sanitize_date(chaine):
     # Date
     try:
         # Convertir la chaîne de caractères en objet date
         datetime.strptime(chaine, '%d/%m/%Y')
-        return str
+        return chaine
     except ValueError:
-        pass
+        return None
 
-    return remove_accents(chaine)
+def check_identifiant(chaine):
+    if len(chaine) != 10:
+        return False
+    
+    return True

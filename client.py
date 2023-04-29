@@ -9,7 +9,7 @@ class Client:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 
-    def connect_socket(self):  
+    def connect_socket(self):
         self.client_socket.connect((self.host, self.port))
         print(f"Connected to server {self.host}:{self.port}")
 
@@ -23,7 +23,7 @@ class Client:
 
     def authenticate(self, username, password):
         message = username + ":" + password
-        response = self.send_msg(message)
+        response = self.send_msg("LOGIN " + message)
         if response == "Authentication successful!":
             return True
         elif response == "Authentication failed!":
@@ -31,9 +31,8 @@ class Client:
         else:
             raise(Exception.args)
 
-    def vote(self):
-        pass
-        
+
+
 if __name__ == '__main__':
     client = Client()
 
@@ -44,5 +43,8 @@ if __name__ == '__main__':
     is_authenticated = client.authenticate("user1", "password1")
     print(f"Authentication result: {is_authenticated}")
 
+    message = "hello world!"
+    response = client.send_msg(message)
+
     # Disconnect from the server
-    client.close_socket()
+    #client.close_socket()
