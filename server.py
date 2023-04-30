@@ -21,7 +21,7 @@ class User:
         self.connexion = None
 
 class Server:
-    def __init__(self, host='127.0.0.1',port=12346):
+    def __init__(self, host='127.0.0.1',port=12345):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -66,6 +66,8 @@ class Server:
 
         print(f"Ending process with {client_address}")
         connexion.close()
+        
+        self.compute_result()
 
 
     def client_init(self, connexion):
@@ -145,8 +147,29 @@ class Server:
         connexion.send_safe("Vote success!")
         return True
 
+    def compute_result(self):
+        decrypted_results = self.privkey.decrypt(self.encrypted_sum) 
+        print("Decrypted Results: {} ({:b})".format(decrypted_results, decrypted_results))
+        candidate_votes = [0] * len(self.candidats)
+        mask = pow(2, len(self.users).bit_length()) - 1
 
+        for i in range(len(self.candidats)):
+            votes_count = (decrypted_results >> (i * len(self.users).bit_length())) & mask
+            print("{}: votes:{} ({:b})".format(i, votes_count, votes_count))
+            candidate_votes[i] = votes_count
 
+        print("Candidate Votes: {}".format(candidate_votes))
+        
+        max_votes = max(candidate_votes)
+        winner_indices = []
+        for i in range(len(self.candidats)):
+            if max_votes == candidate_votes[i]:
+                winner_indices.append(i)
+    
+        if len(winner_indices) > 1:
+            print("We have a tie between candidates: {}".format(winner_indices))
+        else:
+            print("Winner is candidate: {}".format(winner_indices[0]))
 
 
 def read_file_lines_to_list(filename):

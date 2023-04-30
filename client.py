@@ -9,7 +9,7 @@ from phe import paillier
 from Crypto.Cipher import AES
 
 class Client:
-    def __init__(self, host='127.0.0.1',port=12346):
+    def __init__(self, host='127.0.0.1',port=12345):
         self.host = host
         self.port = port
 
@@ -73,21 +73,19 @@ class Client:
 
 
 
-if __name__ == '__main__':
+def simulate_full_process(target_vote):
     client = Client()
-
-    # Connect to the server
     client.connect_socket()
-
-    # Authenticate using example credentials
     client.server_init()
-
-    is_authenticated = client.server_authenticate("user1", "password1")
-    print(f"Authentication result: {is_authenticated}")
-
+    client.server_authenticate("user1", "password1")
     client.server_context()
     client.server_candidats()
-    client.server_vote(1)
+    client.server_vote(target_vote)
 
-    # Disconnect from the server
-    #client.close_socket()
+if __name__ == '__main__':
+    for i in range(1):
+        simulate_full_process(2)
+    for i in range(1):
+        simulate_full_process(1)
+    for i in range(1):
+        simulate_full_process(0)
