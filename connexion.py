@@ -59,9 +59,11 @@ class Connexion:
             return self.recv(size)
 
         encrypted_answer = self.client_socket.recv(size)
-
-        padded_data = self.cipher.decrypt(encrypted_answer)
-        data = unpad(padded_data, AES.block_size)
+        if encrypted_answer:
+            padded_data = self.cipher.decrypt(encrypted_answer)
+            data = unpad(padded_data, AES.block_size)
+        else:
+            data = ""
 
         if auto_decode:
             data = data.decode('utf-8')

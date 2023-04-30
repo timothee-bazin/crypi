@@ -120,6 +120,7 @@ class Server:
         connexion.send_safe(",".join(self.candidats))
 
     def client_vote(self, connexion, data):
+        vote = bytes_split(data, "VOTE ")
         connexion.send_safe("Vote success!")
 
 
