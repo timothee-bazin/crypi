@@ -6,7 +6,7 @@ import rsa
 import secrets
 
 from connexion import Connexion
-from cryptography.fernet import Fernet
+from phe import paillier
 from Crypto.Cipher import AES
 
 
@@ -14,11 +14,14 @@ class User:
     def __init__(self, creds = True):
         self.creds = None
         self.logged = False
+
         self.voted = False
+        self.vote = None
+
         self.connexion = None
 
 class Server:
-    def __init__(self, host='127.0.0.1',port=12345):
+    def __init__(self, host='127.0.0.1',port=12346):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,10 +32,10 @@ class Server:
 
         self.candidats = read_file_lines_to_list("candidats.txt")
 
-        # Générer une clé secrète pour le chiffrement symétrique
-        self.fernet_key = Fernet.generate_key()
-        self.fernet = Fernet(self.fernet_key)
+        # Générer une clé secrète pour paillier
+        self.pubkey, self.privkey = paillier.generate_paillier_keypair()
 
+        self.encrypted_sum = self.pubkey.encrypt(0)
 
     def start(self):
         self.server_socket.bind((self.host, self.port))
@@ -45,31 +48,25 @@ class Server:
             threading.Thread(target=self.handle_client, args=(client_socket, client_address)).start()
 
 
+
     def handle_client(self, client_socket, client_address):
         connexion = Connexion(client_socket, client_address)
 
-        # share keys
-        self.client_init(connexion)
+        func_steps = [
+                self.client_init,
+                self.client_login,
+                self.client_context,
+                self.client_candidats,
+                self.client_vote
+                ]
 
-        # Log in
-        while not self.client_login(connexion):
-            continue
+        for func_step in func_steps:
+            while connexion.up and not func_step(connexion):
+                continue
 
-        while True:
-            data = connexion.recv_safe(4096, auto_decode = False)
-            if not data:
-                print(f"Client {client_address} disconnected")
-                client_socket.close()
-                break
+        print(f"Ending process with {client_address}")
+        connexion.close()
 
-            if bytes_startswith(data, "CONTEXT"):
-                self.client_context(connexion, data)
-            elif bytes_startswith(data, "CANDIDATS"):
-                self.client_candidats(connexion, data)
-            elif bytes_startswith(data, "VOTE "):
-                self.client_vote(connexion, data)
-            elif bytes_startswith(data, "CONFIRM "):
-                pass
 
     def client_init(self, connexion):
         data = connexion.recv(1024, auto_decode = False)
@@ -77,7 +74,7 @@ class Server:
         # Don't decode the expected key
         if not bytes_startswith(data, "INIT "):
             connexion.send("INIT {rsa_pub_key} is expected")
-            return None
+            return False
 
         # Manipulate bytes not str
         client_pubkey_bytes = bytes_split(data, "INIT ")
@@ -92,10 +89,11 @@ class Server:
         safe_message = rsa.encrypt(sym_key, client_pubkey)
 
         connexion.send(safe_message, auto_upgrade = False)
+        return True
 
     def client_login(self, connexion):
         data = connexion.recv_safe(1024)
-        if not data.startswith("LOGIN "):
+        if not data or not data.startswith("LOGIN "):
             connexion.send_safe("LOGIN {creds} is expected")
             return False
 
@@ -111,18 +109,41 @@ class Server:
             return False
 
     def authenticate(self, creds):
-        return creds in self.users and not self.users[creds].logged
+        return creds in self.users #and not self.users[creds].logged
 
-    def client_context(self, connexion, data):
-        connexion.send_safe(self.fernet_key)
+    def client_context(self, connexion):
+        data = connexion.recv_safe(1024)
+        if not data or not data.startswith("CONTEXT"):
+            connexion.send_safe("CONTEXT is expected")
+            return False
 
-    def client_candidats(self, connexion, data):
+        connexion.send_safe(str(self.pubkey.n))
+        return True
+
+    def client_candidats(self, connexion):
+        data = connexion.recv_safe(1024)
+        if not data or not data.startswith("CANDIDATS"):
+            connexion.send_safe("CANDIDATS is expected")
+            return False
+
         connexion.send_safe(",".join(self.candidats))
+        return True
 
-    def client_vote(self, connexion, data):
-        vote = bytes_split(data, "VOTE ")
+    def client_vote(self, connexion):
+        data = connexion.recv_safe(4096)
+        if not data or not data.startswith("VOTE "):
+            connexion.send_safe("VOTE {data1,data2} is expected")
+            return False
+
+        vote_str = bytes_split(data, "VOTE ")
+        vote_data = vote_str.split(',')
+        if len(vote_data) != 2:
+            connexion.send_safe("Vote failed!")
+            return False
+        vote = paillier.EncryptedNumber(self.pubkey, int(vote_data[0]), int(vote_data[1]))
+        self.encrypted_sum += vote
         connexion.send_safe("Vote success!")
-
+        return True
 
 
 

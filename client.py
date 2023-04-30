@@ -5,11 +5,11 @@ import rsa
 import pickle
 
 from connexion import Connexion
-from cryptography.fernet import Fernet
+from phe import paillier
 from Crypto.Cipher import AES
 
 class Client:
-    def __init__(self, host='127.0.0.1',port=12345):
+    def __init__(self, host='127.0.0.1',port=12346):
         self.host = host
         self.port = port
 
@@ -58,16 +58,17 @@ class Client:
 
     def server_context(self):
         self.connexion.send_safe("CONTEXT")
-        fernet_key = self.connexion.recv_safe(4096, auto_decode = False)
-        self.context = Fernet(fernet_key)
+        paillier_pubkey = self.connexion.recv_safe(4096, auto_decode = False)
+        self.context = paillier.PaillierPublicKey(n=int(paillier_pubkey))
 
     def server_candidats(self):
         self.connexion.send_safe("CANDIDATS")
         self.candidats = self.connexion.recv_safe(1024).split(',')
 
     def server_vote(self, index):
-        vote = self.context.encrypt(str(index).encode())
-        self.connexion.send_safe(b"VOTE " + vote)
+        vote = self.context.encrypt(index)
+        votestr = str(vote.ciphertext()) + "," + str(vote.exponent)
+        self.connexion.send_safe("VOTE " + votestr)
         confirm = self.connexion.recv_safe(1024)
 
 
@@ -87,7 +88,6 @@ if __name__ == '__main__':
     client.server_context()
     client.server_candidats()
     client.server_vote(1)
-    print(list(enumerate(client.candidats)))
 
     # Disconnect from the server
     #client.close_socket()
