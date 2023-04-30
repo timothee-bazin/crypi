@@ -3,9 +3,11 @@
 import socket
 import threading
 import rsa
-from connexion import Connexion
+import secrets
 
+from connexion import Connexion
 from cryptography.fernet import Fernet
+from Crypto.Cipher import AES
 
 
 class User:
@@ -16,7 +18,7 @@ class User:
         self.connexion = None
 
 class Server:
-    def __init__(self, host='127.0.0.1',port=12346):
+    def __init__(self, host='127.0.0.1',port=12345):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -31,9 +33,6 @@ class Server:
         self.fernet_key = Fernet.generate_key()
         self.fernet = Fernet(self.fernet_key)
 
-       # Générer une paire de clés RSA
-        (self.pubkey, self.privkey) = rsa.newkeys(512)
-
 
     def start(self):
         self.server_socket.bind((self.host, self.port))
@@ -47,7 +46,7 @@ class Server:
 
 
     def handle_client(self, client_socket, client_address):
-        connexion = Connexion(client_socket, client_address, self.privkey)
+        connexion = Connexion(client_socket, client_address)
 
         # share keys
         self.client_init(connexion)
@@ -57,33 +56,42 @@ class Server:
             continue
 
         while True:
-            data = connexion.recv_safe(1024)
+            data = connexion.recv_safe(4096, auto_decode = False)
             if not data:
                 print(f"Client {client_address} disconnected")
                 client_socket.close()
                 break
 
-            if data.startswith("CONTEXTE "):
-                pass
-            elif data.startswith("VOTE "):
-                pass
-            elif data.startswith("CONFIRM "):
+            if bytes_startswith(data, "CONTEXT"):
+                self.client_context(connexion, data)
+            elif bytes_startswith(data, "CANDIDATS"):
+                self.client_candidats(connexion, data)
+            elif bytes_startswith(data, "VOTE "):
+                self.client_vote(connexion, data)
+            elif bytes_startswith(data, "CONFIRM "):
                 pass
 
     def client_init(self, connexion):
         data = connexion.recv(1024, auto_decode = False)
+
         # Don't decode the expected key
-        if not data[:7].decode('utf-8').startswith("INIT "):
+        if not bytes_startswith(data, "INIT "):
             connexion.send("INIT {rsa_pub_key} is expected")
             return None
 
         # Manipulate bytes not str
-        client_pubkey_bytes = data[len("INIT "):]
-        connexion.client_pubkey = rsa.PublicKey.load_pkcs1(client_pubkey_bytes)
+        client_pubkey_bytes = bytes_split(data, "INIT ")
+        client_pubkey = rsa.PublicKey.load_pkcs1(client_pubkey_bytes)
 
-        pubkey_bytes = self.pubkey.save_pkcs1()
+        # Générer une clé symétrique de 256 bits
+        sym_key = secrets.token_bytes(32)
+
+        connexion.cipher = AES.new(sym_key, AES.MODE_ECB)
+
         # don't upgrade because the client doesn't know our key
-        connexion.send(pubkey_bytes, auto_upgrade = False)
+        safe_message = rsa.encrypt(sym_key, client_pubkey)
+
+        connexion.send(safe_message, auto_upgrade = False)
 
     def client_login(self, connexion):
         data = connexion.recv_safe(1024)
@@ -94,26 +102,29 @@ class Server:
         creds = data.split("LOGIN ")[-1]
         if self.authenticate(creds):
             connexion.send_safe("Authentication successful!")
-            self.users[creds].creds = creds 
-            self.users[creds].logged = True 
-            self.users[creds].connexion = connexion 
+            self.users[creds].creds = creds
+            self.users[creds].logged = True
+            self.users[creds].connexion = connexion
             return True
         else:
             connexion.send("Authentication failed!")
             return False
 
-
-    def client_contexte(self, connexion, data):
-        creds = data.split("CONTEXTE ")[-1]
-        if self.authenticate(creds):
-            connexion.send("Authentication successful!")
-            return self.connexions[creds]
-        else:
-            connexion.send("Authentication failed!")
-            return None
-
     def authenticate(self, creds):
         return creds in self.users and not self.users[creds].logged
+
+    def client_context(self, connexion, data):
+        connexion.send_safe(self.fernet_key)
+
+    def client_candidats(self, connexion, data):
+        connexion.send_safe(",".join(self.candidats))
+
+    def client_vote(self, connexion, data):
+        connexion.send_safe("Vote success!")
+
+
+
+
 
 
 def read_file_lines_to_list(filename):
@@ -122,6 +133,14 @@ def read_file_lines_to_list(filename):
         res = [line.strip() for line in lines]
     return res
 
+def bytes_startswith(bytes_str, prefix):
+    try:
+        return bytes_str[:len(prefix)].decode('utf-8').startswith(prefix)
+    except UnicodeDecodeError:
+        return False
+
+def bytes_split(bytes_str, prefix):
+    return bytes_str[len(prefix):]
 
 if __name__ == '__main__':
     server = Server()
