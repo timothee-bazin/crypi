@@ -4,38 +4,50 @@ import socket
 import threading
 import rsa
 import secrets
+import json
 
 from connexion import Connexion
-from phe import paillier
+from utils import bytes_startswith, bytes_split, read_file_lines_to_list
 from Crypto.Cipher import AES
+import tenseal
 
 
 class User:
     def __init__(self, creds = True):
+        # Check usage of the variables (certaines sont jamais utilisé pour le moment mais sont utiles normalement)
         self.creds = None
         self.logged = False
 
         self.voted = False
-        self.vote = None
-
         self.connexion = None
 
 class Server:
-    def __init__(self, host='127.0.0.1',port=12345):
+    def __init__(self, host='127.0.0.1',port=12346):
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.users = {}
+        self.voters = {}
         for creds in read_file_lines_to_list("credentials.txt"):
-            self.users[creds] = User(creds)
+            self.voters[creds] = User(creds)
 
         self.candidats = read_file_lines_to_list("candidats.txt")
 
-        # Générer une clé secrète pour paillier
-        self.pubkey, self.privkey = paillier.generate_paillier_keypair()
+        # Generate TenSEAL context
+        self.context_params = {
+            "poly_modulus_degree" : 8192,
+            "coeff_mod_bit_sizes" : [60, 40, 40, 60],
+            "global_scale" : 2**40
+        }
+        self.context = tenseal.context(tenseal.SCHEME_TYPE.CKKS,
+                poly_modulus_degree=self.context_params["poly_modulus_degree"],
+                coeff_mod_bit_sizes=self.context_params["coeff_mod_bit_sizes"]
+                )
+        self.context.global_scale = self.context_params["global_scale"]
+        self.context.generate_galois_keys()
+        self.context_secret_key = self.context.secret_key()
 
-        self.encrypted_sum = self.pubkey.encrypt(0)
+        self.encrypted_sum = None
 
     def start(self):
         self.server_socket.bind((self.host, self.port))
@@ -66,7 +78,7 @@ class Server:
 
         print(f"Ending process with {client_address}")
         connexion.close()
-        
+
         self.compute_result()
 
 
@@ -102,16 +114,17 @@ class Server:
         creds = data.split("LOGIN ")[-1]
         if self.authenticate(creds):
             connexion.send_safe("Authentication successful!")
-            self.users[creds].creds = creds
-            self.users[creds].logged = True
-            self.users[creds].connexion = connexion
+            self.voters[creds].creds = creds
+            self.voters[creds].logged = True
+            self.voters[creds].connexion = connexion
             return True
         else:
             connexion.send("Authentication failed!")
             return False
 
     def authenticate(self, creds):
-        return creds in self.users #and not self.users[creds].logged
+        # TODO check authentification process
+        return creds in self.voters #and not self.voters[creds].logged
 
     def client_context(self, connexion):
         data = connexion.recv_safe(1024)
@@ -119,7 +132,17 @@ class Server:
             connexion.send_safe("CONTEXT is expected")
             return False
 
-        connexion.send_safe(str(self.pubkey.n))
+        data = self.context.serialize()
+        data += b"===END==="
+        offset = 0
+        block_size = 65536
+        print(len(data))
+        i = 1
+        while offset < len(data):
+            print(i)
+            i +=1
+            connexion.send(data[offset:offset+block_size], auto_upgrade = False, verbose = False)
+            offset += block_size
         return True
 
     def client_candidats(self, connexion):
@@ -132,60 +155,46 @@ class Server:
         return True
 
     def client_vote(self, connexion):
-        data = connexion.recv_safe(4096)
-        if not data or not data.startswith("VOTE "):
+        data = connexion.recv(4096, auto_decode = False, auto_upgrade = False, verbose = False)
+        if not data or not bytes_startswith(data, "VOTE "):
             connexion.send_safe("VOTE {data1,data2} is expected")
             return False
 
-        vote_str = bytes_split(data, "VOTE ")
-        vote_data = vote_str.split(',')
-        if len(vote_data) != 2:
-            connexion.send_safe("Vote failed!")
-            return False
-        vote = paillier.EncryptedNumber(self.pubkey, int(vote_data[0]), int(vote_data[1]))
-        self.encrypted_sum += vote
+        delimiter = b"===END==="
+        buffer = bytes_split(data, "VOTE ")
+        while delimiter not in buffer:
+            data = connexion.recv(1024, auto_decode = False, auto_upgrade = False, verbose = False)
+            if not data:
+                # connexion fermée
+                break
+            buffer += data
+
+        # enlever le délimiteur à la fin
+        message = buffer[:-len(delimiter)]
+
+        vote = tenseal.ckks_vector_from(self.context, message)
+        print(vote)
+
+        if self.encrypted_sum is None:
+            self.encrypted_sum = vote
+        else:
+            self.encrypted_sum += vote
+
         connexion.send_safe("Vote success!")
+
         return True
 
     def compute_result(self):
-        decrypted_results = self.privkey.decrypt(self.encrypted_sum) 
-        print("Decrypted Results: {} ({:b})".format(decrypted_results, decrypted_results))
-        candidate_votes = [0] * len(self.candidats)
-        mask = pow(2, len(self.users).bit_length()) - 1
+        if self.encrypted_sum is None:
+            print("No vote computed")
+            return
+        decrypted_tallies = self.encrypted_sum.decrypt(self.context_secret_key)
+        print(decrypted_tallies)
+        winner_index = decrypted_tallies.index(max(decrypted_tallies))
+        winner = self.candidats[winner_index]
+        print("Vote counts:", decrypted_tallies)
+        print("Winner:", winner)
 
-        for i in range(len(self.candidats)):
-            votes_count = (decrypted_results >> (i * len(self.users).bit_length())) & mask
-            print("{}: votes:{} ({:b})".format(i, votes_count, votes_count))
-            candidate_votes[i] = votes_count
-
-        print("Candidate Votes: {}".format(candidate_votes))
-        
-        max_votes = max(candidate_votes)
-        winner_indices = []
-        for i in range(len(self.candidats)):
-            if max_votes == candidate_votes[i]:
-                winner_indices.append(i)
-    
-        if len(winner_indices) > 1:
-            print("We have a tie between candidates: {}".format(winner_indices))
-        else:
-            print("Winner is candidate: {}".format(winner_indices[0]))
-
-
-def read_file_lines_to_list(filename):
-    with open(filename, "r") as file:
-        lines = file.readlines()
-        res = [line.strip() for line in lines]
-    return res
-
-def bytes_startswith(bytes_str, prefix):
-    try:
-        return bytes_str[:len(prefix)].decode('utf-8').startswith(prefix)
-    except UnicodeDecodeError:
-        return False
-
-def bytes_split(bytes_str, prefix):
-    return bytes_str[len(prefix):]
 
 if __name__ == '__main__':
     server = Server()

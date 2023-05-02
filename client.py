@@ -3,13 +3,15 @@
 import socket
 import rsa
 import pickle
+import json
 
 from connexion import Connexion
-from phe import paillier
+from utils import bytes_startswith, bytes_split
 from Crypto.Cipher import AES
+import tenseal
 
 class Client:
-    def __init__(self, host='127.0.0.1',port=12345):
+    def __init__(self, host='127.0.0.1',port=12346):
         self.host = host
         self.port = port
 
@@ -39,7 +41,7 @@ class Client:
         self.connexion.send(b"INIT " + pubkey_bytes)
 
         server_sym_key_crypted = self.connexion.recv(4096, auto_decode = False)
-        server_sym_key = rsa.decrypt(server_sym_key_crypted, privkey) 
+        server_sym_key = rsa.decrypt(server_sym_key_crypted, privkey)
 
         self.connexion.cipher = AES.new(server_sym_key, AES.MODE_ECB)
 
@@ -58,22 +60,43 @@ class Client:
 
     def server_context(self):
         self.connexion.send_safe("CONTEXT")
-        paillier_pubkey = self.connexion.recv_safe(4096, auto_decode = False)
-        self.context = paillier.PaillierPublicKey(n=int(paillier_pubkey))
+
+        delimiter = b"===END==="
+        buffer = b""
+        while delimiter not in buffer:
+            data = self.connexion.recv(65536, auto_decode = False, auto_upgrade = False, verbose = False)
+            if not data:
+                # connexion fermée
+                break
+            buffer += data
+
+        ctx = buffer[:-len(delimiter)]
+        self.context =  tenseal.context_from(ctx)
 
     def server_candidats(self):
         self.connexion.send_safe("CANDIDATS")
         self.candidats = self.connexion.recv_safe(1024).split(',')
 
     def server_vote(self, index):
-        vote = self.context.encrypt(index)
-        votestr = str(vote.ciphertext()) + "," + str(vote.exponent)
-        self.connexion.send_safe("VOTE " + votestr)
+        vote = [0] * len(self.candidats)
+        vote[index] = 1
+        print(vote)
+        encrypted_vote = tenseal.CKKSVector(self.context, vote)
+
+        data = b"VOTE " + encrypted_vote.serialize()
+        data += b"===END==="
+        offset = 0
+        block_size = 1024
+        while offset < len(data):
+            sent_bytes = self.connexion.send(data[offset:offset+block_size], auto_upgrade = False, verbose = False)
+            offset += block_size
+
         confirm = self.connexion.recv_safe(1024)
 
 
 
 def simulate_full_process(target_vote):
+    print('=========================================')
     client = Client()
     client.connect_socket()
     client.server_init()
@@ -83,9 +106,6 @@ def simulate_full_process(target_vote):
     client.server_vote(target_vote)
 
 if __name__ == '__main__':
-    for i in range(1):
-        simulate_full_process(2)
-    for i in range(1):
-        simulate_full_process(1)
-    for i in range(1):
-        simulate_full_process(0)
+    simulate_full_process(1)
+    simulate_full_process(2)
+    simulate_full_process(2)
