@@ -124,7 +124,7 @@ class Server:
 
     def authenticate(self, creds):
         # TODO check authentification process
-        return creds in self.voters #and not self.voters[creds].logged
+        return creds in self.voters and not self.voters[creds].logged
 
     def client_context(self, connexion):
         data = connexion.recv_safe(1024)
@@ -153,11 +153,10 @@ class Server:
     def client_vote(self, connexion):
         data = connexion.recv(4096, auto_decode = False, auto_upgrade = False, verbose = False)
         if not data or not bytes_startswith(data, "VOTE "):
-            connexion.send_safe("VOTE {data1,data2} is expected")
+            connexion.send_safe("VOTE {vote} is expected")
             return False
 
         print("Receiving Vote...")
-
         delimiter = b"===END==="
         buffer = bytes_split(data, "VOTE ")
         while delimiter not in buffer:
@@ -185,12 +184,15 @@ class Server:
         if self.encrypted_sum is None:
             print("No vote computed")
             return
+
         decrypted_tallies = self.encrypted_sum.decrypt(self.context_secret_key)
         decrypted_tallies = [round(x) for x in decrypted_tallies] # arrondi
+
+        print("Nombre de votes :", sum(decrypted_tallies))
         print("Résultat des comptes :", decrypted_tallies)
+
         max_tally = max(decrypted_tallies)
         winners = [self.candidats[i] for i in range(len(self.candidats)) if decrypted_tallies[i] == max_tally]
-        print("Nombre de votes :", sum(decrypted_tallies))
         if len(winners) == 1:
             print("Gagnant :", winners[0])
         else:

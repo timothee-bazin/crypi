@@ -22,7 +22,7 @@ class Connexion:
     def send(self, message, auto_upgrade = True, verbose = True):
         if self.cipher and auto_upgrade:
             print("[!] Upgrade security send fonction")
-            self.send_safe(message)
+            self.send_safe(message, verbose = verbose)
             return
 
         if verbose:
@@ -59,7 +59,7 @@ class Connexion:
         # Auto upgrade
         if self.cipher and auto_upgrade:
             print("[!] Upgrade security recv fonction")
-            return self.recv_safe(size)
+            return self.recv_safe(size, auto_decode = auto_decode, verbose = verbose)
 
         if not self.up:
             return None
@@ -79,7 +79,7 @@ class Connexion:
     def recv_safe(self, size, auto_decode = True, verbose = True):
         if self.cipher is None:
             print("[!] Downgrading security recv fonction")
-            return self.recv(size)
+            return self.recv(size, auto_decode = auto_decode, verbose = verbose)
 
         if not self.up:
             return None

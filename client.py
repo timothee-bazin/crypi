@@ -15,7 +15,7 @@ class Client:
         self.host = host
         self.port = port
 
-        # Fernet
+        # Tenseal
         self.context = None
 
        # Générer une paire de clés RSA
@@ -108,6 +108,6 @@ def simulate_full_process(target_vote):
     client.server_vote(target_vote)
 
 if __name__ == '__main__':
-    simulate_full_process(1)
     simulate_full_process(2)
-    simulate_full_process(2)
+    #simulate_full_process(2)
+    #simulate_full_process(2)
