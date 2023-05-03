@@ -61,6 +61,8 @@ class Client:
     def server_context(self):
         self.connexion.send_safe("CONTEXT")
 
+        print("Receiving context...")
+
         delimiter = b"===END==="
         buffer = b""
         while delimiter not in buffer:
@@ -72,6 +74,7 @@ class Client:
 
         ctx = buffer[:-len(delimiter)]
         self.context =  tenseal.context_from(ctx)
+        print("done !")
 
     def server_candidats(self):
         self.connexion.send_safe("CANDIDATS")
@@ -80,7 +83,6 @@ class Client:
     def server_vote(self, index):
         vote = [0] * len(self.candidats)
         vote[index] = 1
-        print(vote)
         encrypted_vote = tenseal.CKKSVector(self.context, vote)
 
         data = b"VOTE " + encrypted_vote.serialize()

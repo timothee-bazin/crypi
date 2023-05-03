@@ -136,11 +136,7 @@ class Server:
         data += b"===END==="
         offset = 0
         block_size = 65536
-        print(len(data))
-        i = 1
         while offset < len(data):
-            print(i)
-            i +=1
             connexion.send(data[offset:offset+block_size], auto_upgrade = False, verbose = False)
             offset += block_size
         return True
@@ -160,20 +156,21 @@ class Server:
             connexion.send_safe("VOTE {data1,data2} is expected")
             return False
 
+        print("Receiving Vote...")
+
         delimiter = b"===END==="
         buffer = bytes_split(data, "VOTE ")
         while delimiter not in buffer:
-            data = connexion.recv(1024, auto_decode = False, auto_upgrade = False, verbose = False)
+            data = connexion.recv(4096, auto_decode = False, auto_upgrade = False, verbose = False)
             if not data:
                 # connexion fermée
                 break
             buffer += data
 
         # enlever le délimiteur à la fin
-        message = buffer[:-len(delimiter)]
-
-        vote = tenseal.ckks_vector_from(self.context, message)
-        print(vote)
+        vote_bytes = buffer[:-len(delimiter)]
+        vote = tenseal.ckks_vector_from(self.context, vote_bytes)
+        print("done !")
 
         if self.encrypted_sum is None:
             self.encrypted_sum = vote
@@ -181,20 +178,23 @@ class Server:
             self.encrypted_sum += vote
 
         connexion.send_safe("Vote success!")
-
         return True
+
 
     def compute_result(self):
         if self.encrypted_sum is None:
             print("No vote computed")
             return
         decrypted_tallies = self.encrypted_sum.decrypt(self.context_secret_key)
-        print(decrypted_tallies)
-        winner_index = decrypted_tallies.index(max(decrypted_tallies))
-        winner = self.candidats[winner_index]
-        print("Vote counts:", decrypted_tallies)
-        print("Winner:", winner)
-
+        decrypted_tallies = [round(x) for x in decrypted_tallies] # arrondi
+        print("Résultat des comptes :", decrypted_tallies)
+        max_tally = max(decrypted_tallies)
+        winners = [self.candidats[i] for i in range(len(self.candidats)) if decrypted_tallies[i] == max_tally]
+        print("Nombre de votes :", sum(decrypted_tallies))
+        if len(winners) == 1:
+            print("Gagnant :", winners[0])
+        else:
+            print("Il y a une égalité entre les gagnants :", winners)
 
 if __name__ == '__main__':
     server = Server()
