@@ -12,6 +12,11 @@ from Crypto.Cipher import AES
 import tenseal
 
 
+# Global variables
+hashed_credentials_file = "../data/hashed_credentials.txt"
+candidats_file = "../data/candidats.txt"
+
+
 class User:
     def __init__(self, creds = True):
         # Check usage of the variables (certaines sont jamais utilisé pour le moment mais sont utiles normalement)
@@ -28,11 +33,11 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.voters = {}
-        for line in read_file_lines_to_list("hashed_credentials.txt"):
+        for line in read_file_lines_to_list(hashed_credentials_file):
             username, _, _ = line.strip().split(':')
             self.voters[username] = User(username)
 
-        self.candidats = read_file_lines_to_list("candidats.txt")
+        self.candidats = read_file_lines_to_list(candidats_file)
 
         # Generate TenSEAL context
         self.context_params = {
@@ -116,7 +121,7 @@ class Server:
         creds = data.split("LOGIN ")[-1].strip()
         username, password = creds.split(":")
 
-        stored_hash, stored_salt = get_stored_hash_and_salt(username, 'hashed_credentials.txt')
+        stored_hash, stored_salt = get_stored_hash_and_salt(username, hashed_credentials_file)
         if stored_hash is None or stored_salt is None:
             connexion.send("Authentication failed!")
             return False
