@@ -1,5 +1,11 @@
 # Crypto projects 2023 (EPITA)
 
+## Authors
+Alexandre GAUTIER
+Léo TRIPIER
+Félix LENA
+Timothée BAZIN
+
 ## Description
 E-voting using homomorphic encryption or secure multiparty computation
 
@@ -40,7 +46,7 @@ Then run the client:
 python3 client.py
 ```
 
-### Modification
+### Possible modifications
 
 The program is highly modulable.
 client.py will execute all the commands located in the __main__ function. Modify it at your desire to changes votes or make tests.
@@ -52,6 +58,7 @@ If you want to manually add credentials to "hashed\_credentials.txt", you can us
 - AES
 - RSA
 - CKKS
+- sha256
 - Hash
 - Salt
 - E-Voting
