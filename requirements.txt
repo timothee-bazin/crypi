@@ -1,0 +1,7 @@
+numpy
+dill
+fernet
+cryptography
+pycryptodome
+rsa
+tenseal
