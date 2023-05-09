@@ -2,8 +2,10 @@
 
 import socket
 import rsa
-import pickle
-import json
+
+# Test
+import random
+###
 
 from connexion import Connexion
 from utils import bytes_startswith, bytes_split
@@ -52,7 +54,7 @@ class Client:
         response = self.connexion.recv_safe(1024)
         if response == "Authentication successful!":
             return True
-        elif response == "Authentication failed!":
+        elif response == "Authentication failed!" or response == "You already voted!":
             return False
         else:
             raise(Exception.args)
@@ -95,19 +97,17 @@ class Client:
 
         confirm = self.connexion.recv_safe(1024)
 
-
-
-def simulate_full_process(target_vote):
+def simulate_full_process(target_vote, clientNumber):
     print('=========================================')
     client = Client()
     client.connect_socket()
     client.server_init()
-    client.server_authenticate("user1", "password1")
-    client.server_context()
-    client.server_candidats()
-    client.server_vote(target_vote)
+    if (client.server_authenticate("user" + str(clientNumber), "password" + str(clientNumber))):
+        client.server_context()
+        client.server_candidats()
+        client.server_vote(target_vote)
+
 
 if __name__ == '__main__':
-    simulate_full_process(2)
-    #simulate_full_process(2)
-    #simulate_full_process(2)
+    for i in range(3):
+        simulate_full_process(random.randint(0, 2), i)

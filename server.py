@@ -119,7 +119,10 @@ class Server:
             self.voters[creds].connexion = connexion
             return True
         else:
-            connexion.send("Authentication failed!")
+            if self.voters[creds].logged:
+                connexion.send("You already voted!")
+            else:
+                connexion.send("Authentication failed!")
             return False
 
     def authenticate(self, creds):
