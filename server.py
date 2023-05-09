@@ -4,7 +4,7 @@ import socket
 import threading
 import rsa
 import secrets
-import json
+import hashlib
 
 from connexion import Connexion
 from utils import bytes_startswith, bytes_split, read_file_lines_to_list
@@ -28,7 +28,7 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.voters = {}
-        for creds in read_file_lines_to_list("credentials.txt"):
+        for creds in read_file_lines_to_list("hashed_credentials.txt"):
             self.voters[creds] = User(creds)
 
         self.candidats = read_file_lines_to_list("candidats.txt")
@@ -111,7 +111,9 @@ class Server:
             connexion.send_safe("LOGIN {creds} is expected")
             return False
 
-        creds = data.split("LOGIN ")[-1]
+        print((data.split("LOGIN")[-1]).strip())
+        creds = hashlib.sha256((data.split("LOGIN")[-1]).strip().encode()).hexdigest()
+        print(creds)
         if self.authenticate(creds):
             connexion.send_safe("Authentication successful!")
             self.voters[creds].creds = creds
