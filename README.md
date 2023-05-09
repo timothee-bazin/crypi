@@ -1,10 +1,10 @@
 # Crypto projects 2023 (EPITA)
 
 ## Authors
-Alexandre GAUTIER
-Léo TRIPIER
-Félix LENA
-Timothée BAZIN
+- Alexandre GAUTIER
+- Léo TRIPIER
+- Félix LENA
+- Timothée BAZIN
 
 ## Description
 E-voting using homomorphic encryption or secure multiparty computation
@@ -21,12 +21,12 @@ E-voting using homomorphic encryption or secure multiparty computation
 └── .gitignore
 ```
 
-data: This folder contains the list of candidates and hashed credentials.
-report: This folder contains generated reports in PDF format, along with their source files.
-slides: This folder contains generated slides in PDF format, along with their source files.
-src: This folder contains the source code files.
-README.md: This file provides an overview of the project and the repository structure.
-.gitignore: This file specifies the files and folders that should not be tracked by Git.
+- data: This folder contains the list of candidates and hashed credentials.
+- report: This folder contains generated reports in PDF format, along with their source files.
+- slides: This folder contains generated slides in PDF format, along with their source files.
+- src: This folder contains the source code files.
+- README.md: This file provides an overview of the project and the repository structure.
+- .gitignore: This file specifies the files and folders that should not be tracked by Git.
 
 ## Usage
 ### Requirement
@@ -48,10 +48,8 @@ python3 client.py
 
 ### Possible modifications
 
-The program is highly modulable.
-client.py will execute all the commands located in the __main__ function. Modify it at your desire to changes votes or make tests.
-You can also decide to add more candidates in the "data/candidates.txt" file.
-If you want to manually add credentials to "hashed\_credentials.txt", you can use the function hash.py to print the line to paste in the file.
+The program is highly modulable. client.py will execute all the commands located in the __main__ function. Modify it at your desire to changes votes or make tests. 
+You can also decide to add more candidates in the "data/candidates.txt" file. If you want to manually add credentials to "hashed\_credentials.txt", you can use the function hash.py to print the line to paste in the file.
 
 ## Keywords
 - Homomorphic
