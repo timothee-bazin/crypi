@@ -4,10 +4,10 @@ import socket
 import threading
 import rsa
 import secrets
-import json
+import hashlib
 
 from connexion import Connexion
-from utils import bytes_startswith, bytes_split, read_file_lines_to_list
+from utils import bytes_startswith, bytes_split, read_file_lines_to_list, get_stored_hash_and_salt  
 from Crypto.Cipher import AES
 import tenseal
 
@@ -28,8 +28,9 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.voters = {}
-        for creds in read_file_lines_to_list("credentials.txt"):
-            self.voters[creds] = User(creds)
+        for line in read_file_lines_to_list("hashed_credentials.txt"):
+            username, _, _ = line.strip().split(':')
+            self.voters[username] = User(username)
 
         self.candidats = read_file_lines_to_list("candidats.txt")
 
@@ -48,6 +49,7 @@ class Server:
         self.context_secret_key = self.context.secret_key()
 
         self.encrypted_sum = None
+
 
     def start(self):
         self.server_socket.bind((self.host, self.port))
@@ -111,23 +113,30 @@ class Server:
             connexion.send_safe("LOGIN {creds} is expected")
             return False
 
-        creds = data.split("LOGIN ")[-1]
-        if self.authenticate(creds):
+        creds = data.split("LOGIN ")[-1].strip()
+        username, password = creds.split(":")
+
+        stored_hash, stored_salt = get_stored_hash_and_salt(username, 'hashed_credentials.txt')
+        if stored_hash is None or stored_salt is None:
+            connexion.send("Authentication failed!")
+            return False
+
+        salt_bytes = bytes.fromhex(stored_salt)
+        hashed_password = hashlib.pbkdf2_hmac('sha256', password.encode(), salt_bytes, 100).hex()
+
+        if hashed_password == stored_hash and not self.voters[username].logged:
             connexion.send_safe("Authentication successful!")
-            self.voters[creds].creds = creds
-            self.voters[creds].logged = True
-            self.voters[creds].connexion = connexion
+            self.voters[username].creds = creds
+            self.voters[username].logged = True
+            self.voters[username].connexion = connexion
             return True
         else:
-            if self.voters[creds].logged:
+            if self.voters[username].logged:
                 connexion.send("You already voted!")
             else:
                 connexion.send("Authentication failed!")
             return False
 
-    def authenticate(self, creds):
-        # TODO check authentification process
-        return creds in self.voters and not self.voters[creds].logged
 
     def client_context(self, connexion):
         data = connexion.recv_safe(1024)

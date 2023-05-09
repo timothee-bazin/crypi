@@ -13,3 +13,11 @@ def bytes_startswith(bytes_str, prefix):
 
 def bytes_split(bytes_str, prefix):
     return bytes_str[len(prefix):]
+
+def get_stored_hash_and_salt(user, hashed_credentials_file):
+    with open(hashed_credentials_file, 'r') as f:
+        for line in f:
+            stored_user, stored_hash, stored_salt = line.strip().split(':')
+            if user == stored_user:
+                return stored_hash, stored_salt
+    return None, None

@@ -109,5 +109,5 @@ def simulate_full_process(target_vote, clientNumber):
 
 
 if __name__ == '__main__':
-    for i in range(3):
+    for i in range(40):
         simulate_full_process(random.randint(0, 2), i)
