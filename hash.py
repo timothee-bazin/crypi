@@ -1,10 +1,12 @@
+import os
 import hashlib
 
-# Open the credentials file for reading and the hashed credentials file for writing
-with open('credentials.txt', 'r') as f_in, open('hashed_credentials.txt', 'w') as f_out:
-    # Iterate over each line in the credentials file
-    for line in f_in:
-        # Hash the line using SHA-256 (you can use a different hash algorithm if you prefer)
-        hashed_line = hashlib.sha256(line.strip().encode()).hexdigest()
-        # Write the hashed line to the output file
-        f_out.write(hashed_line + '\n')
+def generate_hashed_credentials(input_file, output_file):
+    with open(input_file, 'r') as f_in, open(output_file, 'w') as f_out:
+        for line in f_in:
+            user, password = line.strip().split(':')
+            salt = os.urandom(32)
+            hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100)
+            f_out.write(f"{user}:{hash.hex()}:{salt.hex()}\n")
+
+generate_hashed_credentials('credentials.txt', 'hashed_credentials.txt')
