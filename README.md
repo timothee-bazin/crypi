@@ -30,6 +30,7 @@ E-voting using homomorphic encryption or secure multiparty computation
 
 ## Usage
 ### Requirement
+Note that the project require python3
 ```
 cd src/
 pip install -r requirement.txt
